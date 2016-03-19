@@ -1,6 +1,6 @@
 # RingBuffers
 
-[![Build Status](https://travis-ci.org/ssfrr/RingBuffers.jl.svg?branch=master)](https://travis-ci.org/ssfrr/RingBuffers.jl)
+[![Build Status](https://travis-ci.org/JuliaAudio/RingBuffers.svg?branch=master)](https://travis-ci.org/JuliaAudio/RingBuffers)
 [![codecov.io](https://codecov.io/github/JuliaAudio/RingBuffers.jl/coverage.svg?branch=master)](https://codecov.io/github/JuliaAudio/RingBuffers.jl?branch=master)
 
 This package provides the `RingBuffer` type, which is a circular, fixed-size buffer. It is mostly intended to use to pass samples between separate Julia Tasks, and is used in the [PortAudio.jl](https://github.com/JuliaAudio/PortAudio.jl`) package.
