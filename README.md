@@ -1,9 +1,9 @@
 # RingBuffers
 
-[![Build Status](https://travis-ci.org/JuliaAudio/RingBuffers.svg?branch=master)](https://travis-ci.org/JuliaAudio/RingBuffers)
-[![codecov.io](https://codecov.io/github/JuliaAudio/RingBuffers/coverage.svg?branch=master)](https://codecov.io/github/JuliaAudio/RingBuffers?branch=master)
+[![Build Status](https://travis-ci.org/JuliaAudio/RingBuffers.jl.svg?branch=master)](https://travis-ci.org/JuliaAudio/RingBuffers.jl)
+[![codecov.io](https://codecov.io/github/JuliaAudio/RingBuffers.jl/coverage.svg?branch=master)](https://codecov.io/github/JuliaAudio/RingBuffers.jl?branch=master)
 
-This package provides the `RingBuffer` type, which is a circular, fixed-size buffer. It is mostly intended to use to pass samples between separate Julia Tasks, and is used in the [PortAudio.jl](https://github.com/JuliaAudio/PortAudio.jl`) package.
+This package provides the `RingBuffer` type, which is a circular, fixed-size buffer. It is mostly intended to use to pass samples between separate Julia Tasks.
 
 This package implements `read`, `read!`, and `write` methods on the `RingBuffer` type, and supports reading and writing any MxN `AbstractArray` subtypes, where N is the channel count and M is the length in frames.
 
