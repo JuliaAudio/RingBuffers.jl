@@ -106,19 +106,22 @@ Internal write function that will block until it can complete the entire write.
 function write_block{T}(rb::RingBuffer{T}, data::AbstractArray{T})
     cond = Condition()
     push!(rb.writers, cond)
-    if length(rb.writers) > 1
-        wait(cond)
-    end
+    nwritten = 0
+    try
+        if length(rb.writers) > 1
+            wait(cond)
+        end
 
-    total = size(data, 1)
-    nwritten = _write(rb, data)
-    while nwritten < total
-        wait(cond)
-        nwritten += _write(rb, sub(data, (nwritten+1):total, :))
+        total = size(data, 1)
+        nwritten = _write(rb, data)
+        while nwritten < total
+            wait(cond)
+            nwritten += _write(rb, sub(data, (nwritten+1):total, :))
+        end
+    finally
+        # we know we're the first condition because we're awake
+        shift!(rb.writers)
     end
-
-    # we know we're the first condition because we're awake
-    shift!(rb.writers)
     notify_writers(rb)
 
     nwritten
@@ -215,19 +218,22 @@ complete the read.
 function read_block!(rb::RingBuffer, data::AbstractArray)
     cond = Condition()
     push!(rb.readers, cond)
-    if length(rb.readers) > 1
-        wait(cond)
-    end
+    nread = 0
+    try
+        if length(rb.readers) > 1
+            wait(cond)
+        end
 
-    total = size(data, 1)
-    nread = _read!(rb, data)
-    while nread < total
-        wait(cond)
-        nread += _read!(rb, sub(data, (nread+1):total, :))
+        total = size(data, 1)
+        nread = _read!(rb, data)
+        while nread < total
+            wait(cond)
+            nread += _read!(rb, sub(data, (nread+1):total, :))
+        end
+    finally
+        # we know we're the first condition because we're awake
+        shift!(rb.readers)
     end
-
-    # we know we're the first condition because we're awake
-    shift!(rb.readers)
     # notify anybody waiting in line
     notify_readers(rb)
 
