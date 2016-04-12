@@ -43,7 +43,7 @@ Base.eltype{T}(rb::RingBuffer{T}) = T
 read_space(rb::RingBuffer) = Int(rb.navailable)
 write_space(rb::RingBuffer) = size(rb.buf, 1) - read_space(rb)
 # this works because we know the buffer size is a power of two
-wrapidx{T}(rb::RingBuffer{T}, val::Unsigned) = (val - 1) & (size(rb.buf, 1) - 1) + 1
+wrapidx{T}(rb::RingBuffer{T}, val::Unsigned) = val & (size(rb.buf, 1) - 1)
 
 """Notify the first waiting writer that there may be space available"""
 function notify_writers(rb::RingBuffer)
