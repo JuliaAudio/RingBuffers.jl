@@ -1,10 +1,18 @@
 module RingBuffers
 
 using Devectorize
+using Compat
+import Compat.ASCIIString
+import Compat.view
 
 export RingBuffer, BLOCK, TRUNCATE, PAD, OVERWRITE
+export LockFreeRingBuffer, readable, writable
+
+import Base: read, read!, write
 
 @enum OverUnderBehavior BLOCK TRUNCATE PAD OVERWRITE
+
+include("lockfree.jl")
 
 """
 This RingBuffer type is backed by a fixed-size buffer. Overflow and underflow
@@ -61,7 +69,7 @@ end
 
 """Read at most `n` bytes from the ring buffer, returning the results as a new
 Vector{T}. Underflow behavior is determiend by the ringbuffer settings"""
-function Base.read{T}(rb::RingBuffer{T}, n)
+function read{T}(rb::RingBuffer{T}, n)
     if rb.underflow == TRUNCATE
         readsize = min(n, read_space(rb))
     else
@@ -76,7 +84,7 @@ end
 
 """Read the ringbuffer contents into the given vector `v`. Returns the number
 of elements actually read"""
-function Base.read!(rb::RingBuffer, data::AbstractArray)
+function read!(rb::RingBuffer, data::AbstractArray)
     if rb.underflow == BLOCK
         read_block!(rb, data)
     elseif rb.underflow == TRUNCATE
@@ -89,7 +97,7 @@ end
 
 """Write the given vector `v` to the buffer `rb`. If there is not enough space
 in the buffer to hold the contents, old data is overwritten by new"""
-function Base.write{T}(rb::RingBuffer{T}, data::AbstractArray{T})
+function write{T}(rb::RingBuffer{T}, data::AbstractArray{T})
     if rb.overflow == BLOCK
         write_block(rb, data)
     elseif rb.overflow == TRUNCATE
@@ -116,7 +124,7 @@ function write_block{T}(rb::RingBuffer{T}, data::AbstractArray{T})
         nwritten = _write(rb, data)
         while nwritten < total
             wait(cond)
-            nwritten += _write(rb, sub(data, (nwritten+1):total, :))
+            nwritten += _write(rb, view(data, (nwritten+1):total, :))
         end
     finally
         # we know we're the first condition because we're awake
@@ -147,7 +155,7 @@ function write_overwrite{T}(rb::RingBuffer{T}, data::AbstractArray{T})
         # write the whole thing
         rb.readidx = 1
         rb.navailable = 0
-        _write(rb, sub(data, datalen-buflen+1:datalen, :))
+        _write(rb, view(data, datalen-buflen+1:datalen, :))
     else
         overflow = max(0, datalen - write_space(rb))
         # free up the necessary space before writing
@@ -228,7 +236,7 @@ function read_block!(rb::RingBuffer, data::AbstractArray)
         nread = _read!(rb, data)
         while nread < total
             wait(cond)
-            nread += _read!(rb, sub(data, (nread+1):total, :))
+            nread += _read!(rb, view(data, (nread+1):total, :))
         end
     finally
         # we know we're the first condition because we're awake

@@ -6,6 +6,7 @@ else
 end
 
 @testset "RingBuffer Tests" begin
+    include("lockfree.jl")
     @testset "Construction" begin
         r = RingBuffer(Float64, 8, 1)
         @test eltype(r) == Float64
