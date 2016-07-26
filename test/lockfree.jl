@@ -66,4 +66,42 @@
         @test alloc == 0
         close(buf)
     end
+
+    @testset "wake up waiters when written to" begin
+        buf = LockFreeRingBuffer(Int32, 16)
+        data = rand(Int32, 10)
+        waitcond = Condition()
+        @async begin
+            wait(buf)
+            notify(waitcond)
+        end
+        yield()
+        println("waiting at $(@__FILE__):$(@__LINE__)")
+        write(buf, data)
+        wait(waitcond)
+        # if we get here then the waiter was successfully woken
+        println("woke at $(@__FILE__):$(@__LINE__)")
+        @test true
+        close(buf)
+    end
+
+    @testset "wake up waiters when read from" begin
+        buf = LockFreeRingBuffer(Int32, 16)
+        data = rand(Int32, 10)
+        result = zeros(Int32, 10)
+        waitcond = Condition()
+        write(buf, data)
+        @async begin
+            wait(buf)
+            notify(waitcond)
+        end
+        yield()
+        println("waiting at $(@__FILE__):$(@__LINE__)")
+        read!(buf, result)
+        wait(waitcond)
+        # if we get here then the waiter was successfully woken
+        println("woke at $(@__FILE__):$(@__LINE__)")
+        @test true
+        close(buf)
+    end
 end

@@ -8,7 +8,7 @@ import Compat.view
 export RingBuffer, BLOCK, TRUNCATE, PAD, OVERWRITE
 export LockFreeRingBuffer, readable, writable
 
-import Base: read, read!, write
+import Base: read, read!, write, wait
 
 @enum OverUnderBehavior BLOCK TRUNCATE PAD OVERWRITE
 
