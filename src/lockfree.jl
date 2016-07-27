@@ -31,7 +31,7 @@ immutable LockFreeRingBuffer{T}
     nread::Ptr{UInt}
     nwritten::Ptr{UInt}
     container::Ptr{LockFreeRingBufferData{T}}
-    waiters::Condition
+    waiters::AsyncCondition
 end
 
 function LockFreeRingBuffer(T, size)
@@ -44,7 +44,7 @@ function LockFreeRingBuffer(T, size)
     nwrittenptr = Ptr{UInt}(rootaddr + fieldnameoffset(LockFreeRingBufferData{T}, :nwritten))
     containerptr = Ptr{LockFreeRingBufferData{T}}(rootaddr)
 
-    LockFreeRingBuffer(UInt(size), bufptr, nreadptr, nwrittenptr, containerptr, Condition())
+    LockFreeRingBuffer(UInt(size), bufptr, nreadptr, nwrittenptr, containerptr, AsyncCondition())
 end
 
 
@@ -66,10 +66,7 @@ function write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
     end
 
     unsafe_store!(buf.nwritten, unsafe_load(buf.nwritten) + n)
-    # we can only notify without allocating in 0.5 and above
-    @static if VERSION >= v"0.5-"
-        notify(buf.waiters)
-    end
+    wakewaiters(buf)
 
     n
 end
@@ -85,10 +82,7 @@ function read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
     end
 
     unsafe_store!(buf.nread, unsafe_load(buf.nread) + n)
-    # we can only notify without allocating in 0.5 and above
-    @static if VERSION >= v"0.5-"
-        notify(buf.waiters)
-    end
+    wakewaiters(buf)
 
     n
 end
@@ -101,21 +95,8 @@ function Base.close(buf::LockFreeRingBuffer)
     pop!(ringbufs, unsafe_pointer_to_objref(buf.container))
 end
 
-# prior to 0.5 it's impossible to notify a condition without allocating, so
-# we can't wake up waiters. In that case we poll and wake up the waiter when
-# anything changes. The poll time (5ms) is set with the intended use-case of
-# filling an audio buffer that needs to be responsive
-@static if VERSION >= v"0.5-"
-    wait(buf::LockFreeRingBuffer) = wait(buf.waiters)
-else
-    function wait(buf::LockFreeRingBuffer)
-        nread = unsafe_load(buf.nread)
-        nwritten = unsafe_load(buf.nwritten)
-        while unsafe_load(buf.nread) == nread && unsafe_load(buf.nwritten) == nwritten
-            sleep(0.005)
-        end
-    end
-end
+wait(buf::LockFreeRingBuffer) = wait(buf.waiters)
+wakewaiters(buf::LockFreeRingBuffer) = ccall(:uv_async_send, Cint, (Ptr{Void}, ), buf.waiters.handle)
 
 "Gives the memory offset of the given field, given as a symbol"
 fieldnameoffset(T, fname) = fieldoffset(T, findfirst(fieldnames(T), fname))

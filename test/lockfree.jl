@@ -69,39 +69,46 @@
 
     @testset "wake up waiters when written to" begin
         buf = LockFreeRingBuffer(Int32, 16)
+        startcond = Condition()
+        endcond = Condition()
         data = rand(Int32, 10)
-        waitcond = Condition()
-        @async begin
+        woke = false
+        @schedule begin
+            notify(startcond)
             wait(buf)
-            notify(waitcond)
+            woke = true
+            notify(endcond)
         end
-        yield()
-        println("waiting at $(@__FILE__):$(@__LINE__)")
+        wait(startcond)
+        @test !woke
         write(buf, data)
-        wait(waitcond)
+        wait(endcond)
         # if we get here then the waiter was successfully woken
-        println("woke at $(@__FILE__):$(@__LINE__)")
-        @test true
+        @test woke
         close(buf)
     end
 
     @testset "wake up waiters when read from" begin
         buf = LockFreeRingBuffer(Int32, 16)
+        startcond = Condition()
+        endcond = Condition()
         data = rand(Int32, 10)
         result = zeros(Int32, 10)
-        waitcond = Condition()
         write(buf, data)
-        @async begin
+        wait(buf) # we need to make sure that the internal AsyncConditino gets triggered
+        woke = false
+        @schedule begin
+            notify(startcond)
             wait(buf)
-            notify(waitcond)
+            woke = true
+            notify(endcond)
         end
-        yield()
-        println("waiting at $(@__FILE__):$(@__LINE__)")
+        wait(startcond)
+        @test !woke
         read!(buf, result)
-        wait(waitcond)
+        wait(endcond)
         # if we get here then the waiter was successfully woken
-        println("woke at $(@__FILE__):$(@__LINE__)")
-        @test true
+        @test woke
         close(buf)
     end
 end

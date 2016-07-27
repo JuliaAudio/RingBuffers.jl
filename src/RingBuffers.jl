@@ -3,7 +3,7 @@ module RingBuffers
 using Devectorize
 using Compat
 import Compat.ASCIIString
-import Compat.view
+import Compat: view, AsyncCondition
 
 export RingBuffer, BLOCK, TRUNCATE, PAD, OVERWRITE
 export LockFreeRingBuffer, readable, writable
