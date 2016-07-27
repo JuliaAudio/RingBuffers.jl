@@ -1,6 +1,5 @@
 module RingBuffers
 
-using Devectorize
 using Compat
 import Compat.ASCIIString
 import Compat: view, AsyncCondition
@@ -179,13 +178,13 @@ function _write{T}(rb::RingBuffer{T}, data::AbstractArray{T})
 
     if writeidx + total - 1 <= buflen
         bufend = total+writeidx-1
-        @devec rb.buf[writeidx:bufend, :] = data[1:total, :]
+        rb.buf[writeidx:bufend, :] = view(data, 1:total, :)
     else
         partial = buflen - writeidx + 1
-        @devec rb.buf[writeidx:buflen, :] = data[1:partial, :]
+        rb.buf[writeidx:buflen, :] = view(data, 1:partial, :)
         bufend = total-partial
         datastart = partial+1
-        @devec rb.buf[1:bufend, :] = data[datastart:total, :]
+        rb.buf[1:bufend, :] = view(data, datastart:total, :)
     end
 
     rb.navailable += total
@@ -258,14 +257,14 @@ function _read!(rb::RingBuffer, data::AbstractArray)
     if rb.readidx + total - 1 <= buflen
         bufstart = rb.readidx
         bufend = rb.readidx+total-1
-        @devec data[1:total, :] = rb.buf[bufstart:bufend, :]
+        data[1:total, :] = view(rb.buf, bufstart:bufend, :)
     else
         partial = buflen - rb.readidx + 1
         bufstart = rb.readidx
-        @devec data[1:partial, :] = rb.buf[bufstart:buflen, :]
+        data[1:partial, :] = view(rb.buf, bufstart:buflen, :)
         datastart = partial+1
         bufend = total-partial
-        @devec data[datastart:total, :] = rb.buf[1:bufend, :]
+        data[datastart:total, :] = view(rb.buf, 1:bufend, :)
     end
 
     rb.readidx = wrapidx(rb, rb.readidx + total)
