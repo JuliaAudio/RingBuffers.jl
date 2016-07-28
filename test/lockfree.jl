@@ -111,4 +111,19 @@
         @test woke
         close(buf)
     end
+
+    @testset "supports nreadable and nwritable" begin
+        buf = LockFreeRingBuffer(Int32, 16)
+        data = rand(Int32, 10)
+        result = rand(Int32, 5)
+        @test nreadable(buf) == 0
+        @test nwritable(buf) == 16
+        write(buf, data)
+        @test nreadable(buf) == 10
+        @test nwritable(buf) == 6
+        read!(buf, result)
+        @test nreadable(buf) == 5
+        @test nwritable(buf) == 11
+        close(buf)
+    end
 end

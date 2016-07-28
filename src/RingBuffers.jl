@@ -5,7 +5,7 @@ import Compat.ASCIIString
 import Compat: view, AsyncCondition
 
 export RingBuffer, BLOCK, TRUNCATE, PAD, OVERWRITE
-export LockFreeRingBuffer, readable, writable
+export LockFreeRingBuffer, nreadable, nwritable
 
 import Base: read, read!, write, wait
 

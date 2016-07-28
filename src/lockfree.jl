@@ -48,17 +48,17 @@ function LockFreeRingBuffer(T, size)
 end
 
 
-function readable(buf::LockFreeRingBuffer)
+function nreadable(buf::LockFreeRingBuffer)
     nread = unsafe_load(buf.nread)
     nwritten = unsafe_load(buf.nwritten)
 
     nwritten - nread
 end
 
-writable(buf::LockFreeRingBuffer) = buf.size - readable(buf)
+nwritable(buf::LockFreeRingBuffer) = buf.size - nreadable(buf)
 
 function write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
-    n = min(n, writable(buf))
+    n = min(n, nwritable(buf))
     writepos = unsafe_load(buf.nwritten) + 1
     sizemask = buf.size - 1
     for i in 1:n
@@ -74,7 +74,7 @@ end
 write{T}(buf::LockFreeRingBuffer{T}, data::Vector{T}, n=length(data)) = write(buf, pointer(data), UInt(n))
 
 function read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
-    n = min(n, readable(buf))
+    n = min(n, nreadable(buf))
     readpos = unsafe_load(buf.nread) + 1
     sizemask = buf.size - 1
     for i in 1:n
