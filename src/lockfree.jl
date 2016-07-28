@@ -57,7 +57,7 @@ end
 
 nwritable(buf::LockFreeRingBuffer) = buf.size - nreadable(buf)
 
-function write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
+function write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::UInt)
     n = min(n, nwritable(buf))
     writepos = unsafe_load(buf.nwritten) + 1
     sizemask = buf.size - 1
@@ -71,9 +71,13 @@ function write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
     n
 end
 
+# convert the sample count to a UInt if necessary
+write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::Real) = write(buf, data, UInt(n))
+
+# also handle Vectors, possibly detecting the length
 write{T}(buf::LockFreeRingBuffer{T}, data::Vector{T}, n=length(data)) = write(buf, pointer(data), UInt(n))
 
-function read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
+function read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::UInt)
     n = min(n, nreadable(buf))
     readpos = unsafe_load(buf.nread) + 1
     sizemask = buf.size - 1
@@ -87,6 +91,10 @@ function read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n)
     n
 end
 
+# convert the sample count to a UInt if necessary
+read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::Real) = read!(buf, data, UInt(n))
+
+# also handle Vectors, possibly detecting the length
 read!{T}(buf::LockFreeRingBuffer{T}, data::Vector{T}, n=length(data)) = read!(buf, pointer(data), UInt(n))
 
 # this just removes the container from our ringbufs list, so the GC can do its
