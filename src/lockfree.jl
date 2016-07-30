@@ -7,6 +7,7 @@ type LockFreeRingBufferData{T}
     buf::Vector{T}
     nread::UInt
     nwritten::UInt
+    cond::AsyncCondition
 end
 
 # keep all our references here
@@ -31,12 +32,14 @@ immutable LockFreeRingBuffer{T}
     nread::Ptr{UInt}
     nwritten::Ptr{UInt}
     container::Ptr{LockFreeRingBufferData{T}}
-    waiters::AsyncCondition
+    cond::Ptr{AsyncCondition}
+    condhandle::Ptr{Void}
 end
 
 function LockFreeRingBuffer(T, size)
     size = nextpow2(size)
-    container = LockFreeRingBufferData(Array(T, size), UInt(0), UInt(0))
+    cond = AsyncCondition()
+    container = LockFreeRingBufferData(Array(T, size), UInt(0), UInt(0), cond)
     push!(ringbufs, container)
     rootaddr = pointer_from_objref(container)
     bufptr = Ptr{T}(pointer(container.buf))
@@ -44,7 +47,8 @@ function LockFreeRingBuffer(T, size)
     nwrittenptr = Ptr{UInt}(rootaddr + fieldnameoffset(LockFreeRingBufferData{T}, :nwritten))
     containerptr = Ptr{LockFreeRingBufferData{T}}(rootaddr)
 
-    LockFreeRingBuffer(UInt(size), bufptr, nreadptr, nwrittenptr, containerptr, AsyncCondition())
+    LockFreeRingBuffer(UInt(size), bufptr, nreadptr, nwrittenptr, containerptr,
+            Ptr{AsyncCondition}(pointer_from_objref(cond)), cond.handle)
 end
 
 
@@ -75,7 +79,7 @@ end
 write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::Real) = write(buf, data, UInt(n))
 
 # also handle Vectors, possibly detecting the length
-write{T}(buf::LockFreeRingBuffer{T}, data::Vector{T}, n=length(data)) = write(buf, pointer(data), UInt(n))
+write{T}(buf::LockFreeRingBuffer{T}, data::Array{T}, n=length(data)) = write(buf, pointer(data), UInt(n))
 
 function read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::UInt)
     n = min(n, nreadable(buf))
@@ -95,7 +99,7 @@ end
 read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::Real) = read!(buf, data, UInt(n))
 
 # also handle Vectors, possibly detecting the length
-read!{T}(buf::LockFreeRingBuffer{T}, data::Vector{T}, n=length(data)) = read!(buf, pointer(data), UInt(n))
+read!{T}(buf::LockFreeRingBuffer{T}, data::Array{T}, n=length(data)) = read!(buf, pointer(data), UInt(n))
 
 # this just removes the container from our ringbufs list, so the GC can do its
 # thing. After this all the pointers should be considered invalid
@@ -103,8 +107,8 @@ function Base.close(buf::LockFreeRingBuffer)
     pop!(ringbufs, unsafe_pointer_to_objref(buf.container))
 end
 
-wait(buf::LockFreeRingBuffer) = wait(buf.waiters)
-wakewaiters(buf::LockFreeRingBuffer) = ccall(:uv_async_send, Cint, (Ptr{Void}, ), buf.waiters.handle)
+wait(buf::LockFreeRingBuffer) = wait(unsafe_load(buf.cond))
+wakewaiters(buf::LockFreeRingBuffer) = ccall(:uv_async_send, Cint, (Ptr{Void}, ), buf.condhandle)
 
 "Gives the memory offset of the given field, given as a symbol"
 fieldnameoffset(T, fname) = fieldoffset(T, findfirst(fieldnames(T), fname))
