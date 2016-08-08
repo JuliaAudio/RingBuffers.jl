@@ -2,7 +2,7 @@ module RingBuffers
 
 using Compat
 import Compat.ASCIIString
-import Compat: view, AsyncCondition
+import Compat: view
 
 export RingBuffer, BLOCK, TRUNCATE, PAD, OVERWRITE
 export LockFreeRingBuffer, nreadable, nwritable, wakewaiters
@@ -11,6 +11,7 @@ import Base: read, read!, write, wait
 
 @enum OverUnderBehavior BLOCK TRUNCATE PAD OVERWRITE
 
+include("compat.jl")
 include("lockfree.jl")
 
 """
