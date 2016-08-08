@@ -10,6 +10,8 @@ This package implements `read`, `read!`, and `write` methods on the `RingBuffer`
 
 See the tests for more details on usage.
 
+#### NOTE: This package currently requires the master branch of the `Compat` package.
+
 ## Overflow and Underflow
 
 Overflow and underflow behavior is configurable separately with the `overflow` and `underflow` keyword arguments in the constructor.
