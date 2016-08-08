@@ -66,7 +66,8 @@ function write{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::UInt)
     writepos = unsafe_load(buf.nwritten) + 1
     sizemask = buf.size - 1
     for i in 1:n
-        unsafe_store!(buf.buf, unsafe_load(data, i), (writepos + i) & sizemask)
+        # note unsafe_store! wants 1-indexed data, but the masking assumes 0-indexed
+        unsafe_store!(buf.buf, unsafe_load(data, i), (writepos + i - 1) & sizemask + 1)
     end
 
     unsafe_store!(buf.nwritten, unsafe_load(buf.nwritten) + n)
@@ -86,7 +87,8 @@ function read!{T}(buf::LockFreeRingBuffer{T}, data::Ptr{T}, n::UInt)
     readpos = unsafe_load(buf.nread) + 1
     sizemask = buf.size - 1
     for i in 1:n
-        unsafe_store!(data, unsafe_load(buf.buf, (readpos + i) & sizemask), i)
+        # note unsafe_load wants 1-indexed data, but the masking assumes 0-indexed
+        unsafe_store!(data, unsafe_load(buf.buf, (readpos + i - 1) & sizemask + 1), i)
     end
 
     unsafe_store!(buf.nread, unsafe_load(buf.nread) + n)
