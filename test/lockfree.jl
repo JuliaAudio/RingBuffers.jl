@@ -126,4 +126,9 @@
         @test nwritable(buf) == 11
         close(buf)
     end
+
+    @testset "supports length" begin
+        buf = LockFreeRingBuffer(Int32, 16)
+        @test length(buf) == 16
+    end
 end

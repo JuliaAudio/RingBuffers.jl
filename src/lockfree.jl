@@ -107,6 +107,8 @@ function Base.close(buf::LockFreeRingBuffer)
     pop!(ringbufs, unsafe_pointer_to_objref(buf.container))
 end
 
+Base.length(buf::LockFreeRingBuffer) = buf.size
+
 wait(buf::LockFreeRingBuffer) = wait(unsafe_load(buf.cond))
 wakewaiters(buf::LockFreeRingBuffer) = ccall(:uv_async_send, Cint, (Ptr{Void}, ), buf.condhandle)
 
