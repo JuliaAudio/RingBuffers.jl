@@ -1,7 +1,7 @@
 "The pa_ringbuffer shared library"
 const libpa_ringbuffer = Base.Libdl.find_library(
-        ["pa_ringbuffer",],
-        [joinpath(dirname(@__FILE__), "..", "deps", "usr", "lib"),])
+        ["pa_ringbuffer"],
+        [joinpath(dirname(@__FILE__), "..", "deps", "usr", "lib")])
 
 @static if is_apple()
     const RingBufferSize = Int32
