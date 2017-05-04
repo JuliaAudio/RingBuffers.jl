@@ -9,6 +9,11 @@ else
     const RingBufferSize = Clong
 end
 
+"""
+    PaUtilRingBuffer(elementSizeBytes, elementCount)
+
+Mirrors the C-side PaUtilRingBuffer struct that describes the ringbuffer state.
+"""
 mutable struct PaUtilRingBuffer
     bufferSize::RingBufferSize # Number of elements in FIFO. Power of 2. Set by PaUtil_InitializeRingBuffer.
     writeIndex::RingBufferSize # Index of next writable element. Set by PaUtil_AdvanceRingBufferWriteIndex.
@@ -29,7 +34,14 @@ mutable struct PaUtilRingBuffer
     end
 end
 
-Base.close(rbuf::PaUtilRingBuffer) = Base.Libc.free(rbuf.buffer)
+function close(rbuf::PaUtilRingBuffer)
+    if rbuf.buffer != C_NULL
+        Base.Libc.free(rbuf.buffer)
+        rbuf.buffer = C_NULL
+    end
+end
+
+isopen(rbuf::PaUtilRingBuffer) = rbuf.buffer != C_NULL
 
 """
     PaUtil_InitializeRingBuffer(rbuf, elementSizeBytes, elementCount, dataPtr)

@@ -79,6 +79,29 @@ using Base.Test
         @test t.state == :done
     end
 
+    @testset "closing ringbuf cancels in-progress writes" begin
+        writedata = collect(reshape(1:20, 2, 10))
+        rb = RingBuffer{Int}(2, 8)
+        t1 = @async write(rb, writedata)
+        t2 = @async write(rb, writedata)
+        sleep(0.1)
+        close(rb)
+        @test wait(t1) == 8
+        @test wait(t2) == 0
+    end
+
+    @testset "closing ringbuf cancels in-progress reads" begin
+        writedata = collect(reshape(1:6, 2, 3))
+        rb = RingBuffer{Int}(2, 8)
+        write(rb, writedata)
+        t1 = @async read(rb, 5)
+        t2 = @async read(rb, 5)
+        sleep(0.1)
+        close(rb)
+        @test wait(t1) == writedata[:, 1:3]
+        @test wait(t2) == Array{Int}(2, 0)
+    end
+
     # @testset "Overwriting overflow" begin
     #     r = RingBuffer(Int, 8, 2; overflow=OVERWRITE)
     #     data = reshape(1:12, 6, 2)

@@ -1,7 +1,7 @@
 module RingBuffers
 
 export RingBuffer
-import Base: read, read!, write, wait, unsafe_convert, notify
+import Base: read, read!, write, wait, unsafe_convert, notify, isopen, close
 using Base: AsyncCondition
 
 include("pa_ringbuffer.jl")
@@ -52,6 +52,7 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
     if length(rbuf.writers) > 1
         # we're behind someone in the queue
         wait(cond)
+        isopen(rbuf) || return 0
     end
     # now we're in the front of the queue
     nwritten = 0
@@ -61,6 +62,7 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
     nwritten += n
     while nwritten < nframes
         wait(rbuf.datanotify)
+        isopen(rbuf) || return nwritten
         n = PaUtil_WriteRingBuffer(rbuf.pabuf,
                                    pointer(data)+(nwritten*rbuf.nchannels*sizeof(T)),
                                    nframes-nwritten)
@@ -117,6 +119,7 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
     if length(rbuf.readers) > 1
         # we're behind someone in the queue
         wait(cond)
+        isopen(rbuf) || return 0
     end
     # now we're in the front of the queue
     nread = 0
@@ -126,6 +129,7 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
     nread += n
     while nread < nframes
         wait(rbuf.datanotify)
+        isopen(rbuf) || return nread
         n = PaUtil_ReadRingBuffer(rbuf.pabuf,
                                   pointer(data)+(nread*rbuf.nchannels*sizeof(T)),
                                   nframes-nread)
@@ -173,6 +177,20 @@ function read(rbuf::RingBuffer{T}, nframes) where {T}
         data
     end
 end
+
+function close(rbuf::RingBuffer)
+    close(rbuf.pabuf)
+    # wake up any waiting readers or writers
+    notify(rbuf.datanotify.cond)
+    for condlist in (rbuf.readers, rbuf.writers)
+        while length(condlist) > 0
+            cond = pop!(condlist)
+            notify(cond)
+        end
+    end
+end
+
+isopen(rbuf::RingBuffer) = isopen(rbuf.pabuf)
 
 """
     notify(rbuf::RingBuffer)
