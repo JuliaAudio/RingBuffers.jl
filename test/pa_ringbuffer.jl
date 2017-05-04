@@ -34,3 +34,18 @@ end
     @test RingBuffers.PaUtil_GetRingBufferWriteAvailable(buf) == 16
     @test RingBuffers.PaUtil_GetRingBufferReadAvailable(buf) == 0
 end
+
+@testset "PA ring buffer handles overflow/underflow" begin
+    buf = RingBuffers.PaUtilRingBuffer(sizeof(Int), 8)
+    writedata = collect(1:5)
+    readdata = collect(6:10)
+
+    @test RingBuffers.PaUtil_WriteRingBuffer(buf, writedata, 5) == 5
+    @test RingBuffers.PaUtil_WriteRingBuffer(buf, writedata, 5) == 3
+    @test RingBuffers.PaUtil_GetRingBufferWriteAvailable(buf) == 0
+    @test RingBuffers.PaUtil_GetRingBufferReadAvailable(buf) == 8
+    @test RingBuffers.PaUtil_ReadRingBuffer(buf, readdata, 5) == 5
+    @test RingBuffers.PaUtil_ReadRingBuffer(buf, readdata, 5) == 3
+    @test RingBuffers.PaUtil_GetRingBufferWriteAvailable(buf) == 8
+    @test RingBuffers.PaUtil_GetRingBufferReadAvailable(buf) == 0
+end
