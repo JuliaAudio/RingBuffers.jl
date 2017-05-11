@@ -11,8 +11,7 @@ endif
 #endif
 
 #INC =-I"$(JULIA_INC)"
-FLAGS =-Wall -Wno-strict-aliasing -fno-omit-frame-pointer -fPIC
-# CFLAGS =-g
+CFLAGS =-Wall -Wno-strict-aliasing -fno-omit-frame-pointer -fPIC
 # LINUX_LIBS =-lrt
 # LINUX_LDFLAGS =-rdynamic
 # add the Homebrew.jl tree to the include dirs in case we used it for
@@ -53,7 +52,7 @@ TARGET=$(TARGETDIR)/pa_ringbuffer.$(SHLIB_EXT)
 default: $(TARGET)
 
 %.o: %.c Makefile
-	$(CC) $< -fPIC -c -o $@ $(INC) $(CFLAGS) $(FLAGS)
+	$(CC) $< -fPIC -c -o $@ $(INC) $(CFLAGS)
 
 $(TARGET): $(OBJS) Makefile
 	mkdir -p $(TARGETDIR)

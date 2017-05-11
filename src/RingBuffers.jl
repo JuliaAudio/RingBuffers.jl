@@ -2,9 +2,25 @@ __precompile__()
 
 module RingBuffers
 
-export RingBuffer
-import Base: read, read!, write, wait, unsafe_convert, notify, isopen, close
+export RingBuffer, notifyhandle, framesreadable, frameswritable
+export writeavailable, writeavailable!, readavailable! # these don't exist in Base
+export PaUtilRingBuffer
+
+import Base: read, read!, readavailable, write, flush
+import Base: wait, notify
+import Base: unsafe_convert, pointer
+import Base: isopen, close
+
 using Base: AsyncCondition
+
+function __init__()
+    # override dlopen flags to make sure we always use `RTLD_GLOBAL` so that the
+    # library functions are available to other C shim libraries that other
+    # packages might need to add to handle their audio callbacks.
+    Libdl.dlopen(libpa_ringbuffer, Libdl.RTLD_LAZY |
+                                   Libdl.RTLD_DEEPBIND |
+                                   Libdl.RTLD_GLOBAL)
+end
 
 include("pa_ringbuffer.jl")
 
@@ -14,6 +30,12 @@ include("pa_ringbuffer.jl")
 A lock-free ringbuffer wrapping PortAudio's implementation. The underlying
 representation stores multi-channel data as interleaved. The buffer will hold
 `nframes` frames.
+
+This ring buffer can be used to pass data between tasks similar to the built-in
+`Channel` type, but it has the additional ability to pass data to and from C
+code running on a different thread. The C code can use the API defined in
+`pa_ringbuffer.h`. Note that this is only safe with a single-threaded reader and
+single-threaded writer.
 """
 struct RingBuffer{T}
     pabuf::PaUtilRingBuffer
@@ -29,16 +51,18 @@ struct RingBuffer{T}
     end
 end
 
-function frameswritable(rbuf::RingBuffer{T}) where {T}
-    PaUtil_GetRingBufferWriteAvailable(rbuf)
-end
+###############
+# Writing
+###############
 
 """
     write(rbuf::RingBuffer{T}, data::AbstractArray{T}[, nframes])
 
 Write `nframes` frames to `rbuf` from `data`. Assumes the data is interleaved.
 If the buffer is full the call will block until space is available or the ring
-buffer is closed.
+buffer is closed. If `data` is a `Vector`, it's treated as a block of memory
+from which to read the interleaved data. If it's a `Matrix`, it is treated as
+nchannels × nframes.
 
 Returns the number of frames written, which should be equal to the requested
 number unless the buffer was closed prematurely.
@@ -48,6 +72,8 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
         dframes = (div(length(data), rbuf.nchannels))
         throw(ErrorException("data array is too short ($dframes frames) for requested write ($nframes frames)"))
     end
+
+    isopen(rbuf) || return 0
 
     cond = Condition()
     push!(rbuf.writers, cond)
@@ -94,9 +120,63 @@ function write(rbuf::RingBuffer{T}, data::AbstractVector{T}) where {T}
     write(rbuf, data, div(length(data), rbuf.nchannels))
 end
 
-function framesreadable(rbuf::RingBuffer{T}) where {T}
-    PaUtil_GetRingBufferReadAvailable(rbuf)
+"""
+    frameswritable(rbuf::RingBuffer)
+
+Returns the number of frames that can be written to the ring buffer without
+blocking.
+"""
+function frameswritable(rbuf::RingBuffer)
+    PaUtil_GetRingBufferWriteAvailable(rbuf.pabuf)
 end
+
+"""
+    writeavailable(rbuf::RingBuffer{T}, data::AbstractArray{T}[, nframes])
+
+Write up to `nframes` frames to `rbuf` from `data` without blocking. If `data`
+is a `Vector`, it's treated as a block of memory from which to read the
+interleaved data. If it's a `Matrix`, it is treated as nchannels × nframes.
+
+Returns the number of frames written.
+"""
+function writeavailable(rbuf::RingBuffer{T}, data::AbstractVector{T},
+                        nframes=div(length(data), rbuf.nchannels)) where {T}
+    write(rbuf, data, min(nframes, frameswritable(rbuf)))
+end
+
+function writeavailable(rbuf::RingBuffer{T}, data::AbstractMatrix{T},
+                        nframes=size(data, 2)) where {T}
+    write(rbuf, data, min(nframes, frameswritable(rbuf)))
+end
+
+# basically add ourselves to the queue as if we're a writer, but wait until the
+# ringbuf is emptied
+function flush(rbuf::RingBuffer)
+    isopen(rbuf) || return
+
+    cond = Condition()
+    push!(rbuf.writers, cond)
+    if length(rbuf.writers) > 1
+        # we're behind someone in the queue
+        wait(cond)
+        isopen(rbuf) || return
+    end
+    # now we're in the front of the queue
+    while frameswritable(rbuf) < rbuf.pabuf.bufferSize
+        wait(rbuf.datanotify)
+        isopen(rbuf) || return
+    end
+
+    # we're done, remove our condition and notify the next writer if necessary
+    shift!(rbuf.writers)
+    if length(rbuf.writers) > 0
+       notify(rbuf.writers[1])
+    end
+end
+
+###############
+# Reading
+###############
 
 """
     read!(rbuf::RingBuffer, data::AbstractArray[, nframes])
@@ -180,6 +260,56 @@ function read(rbuf::RingBuffer{T}, nframes) where {T}
     end
 end
 
+"""
+    frameswritable(rbuf::RingBuffer)
+
+Returns the number of frames that can be written to the ring buffer without
+blocking.
+"""
+function framesreadable(rbuf::RingBuffer)
+    PaUtil_GetRingBufferReadAvailable(rbuf.pabuf)
+end
+
+"""
+    readavailable!(rbuf::RingBuffer{T}, data::AbstractArray{T}[, nframes])
+
+Read up to `nframes` frames from `rbuf` into `data` without blocking. If `data`
+is a `Vector`, it's treated as a block of memory to write the interleaved data
+to. If it's a `Matrix`, it is treated as nchannels × nframes.
+
+Returns the number of frames read.
+"""
+function readavailable!(rbuf::RingBuffer{T}, data::AbstractVector{T},
+                        nframes=div(length(data), rbuf.nchannels)) where {T}
+    read!(rbuf, data, min(nframes, framesreadable(rbuf)))
+end
+
+function readavailable!(rbuf::RingBuffer{T}, data::AbstractMatrix{T},
+                        nframes=size(data, 2)) where {T}
+    read!(rbuf, data, min(nframes, framesreadable(rbuf)))
+end
+
+"""
+    readavailable(rbuf::RingBuffer[, nframes])
+
+Read up to `nframes` frames from `rbuf` into `data` without blocking. If `data`
+is a `Vector`, it's treated as a block of memory to write the interleaved data
+to. If it's a `Matrix`, it is treated as nchannels × nframes.
+
+Returns an (nchannels × nframes) `Array`.
+"""
+function readavailable(rbuf::RingBuffer, nframes)
+    read(rbuf, min(nframes, framesreadable(rbuf)))
+end
+
+function readavailable(rbuf::RingBuffer)
+    read(rbuf, framesreadable(rbuf))
+end
+
+######################
+# Resource Management
+######################
+
 function close(rbuf::RingBuffer)
     close(rbuf.pabuf)
     # wake up any waiting readers or writers
@@ -194,14 +324,30 @@ end
 
 isopen(rbuf::RingBuffer) = isopen(rbuf.pabuf)
 
-"""
-    notify(rbuf::RingBuffer)
+# """
+#     notify(rbuf::RingBuffer)
+#
+# Notify the ringbuffer that new data might be available, which will wake up
+# any waiting readers or writers. This is safe to call from a separate thread
+# context.
+# """
+# notify(rbuf::RingBuffer) = ccall(:uv_async_send, rbuf.datacond.handle)
 
-Notify the ringbuffer that new data might be available, which will wake up
-any waiting readers or writers. This is safe to call from a separate thread
-context.
 """
-notify(rbuf::RingBuffer) = ccall(:uv_async_send, rbuf.datacond.handle)
+    notifyhandle(rbuf::RingBuffer)
+
+Return the AsyncCondition handle that can be used to wake up the buffer from
+another thread.
+"""
+notifyhandle(rbuf::RingBuffer) = rbuf.datanotify.handle
+
+"""
+    pointer(rbuf::RingBuffer)
+
+Return the pointer to the underlying PaUtilRingBuffer that can be passed to C
+code and manipulated with the pa_ringbuffer.h API.
+"""
+pointer(rbuf::RingBuffer) = Ptr{PaUtilRingBuffer}(pointer_from_objref(rbuf.pabuf))
 
 # set it up so we can pass this directly to `ccall` expecting a PA ringbuffer
 unsafe_convert(::Type{Ptr{PaUtilRingBuffer}}, buf::RingBuffer) = unsafe_convert(Ptr{PaUtilRingBuffer}, buf.pabuf)
