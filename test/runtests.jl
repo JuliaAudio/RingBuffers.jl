@@ -4,6 +4,20 @@ using Base.Test
 
 @testset DottedTestSet "RingBuffer Tests" begin
     include("pa_ringbuffer.jl")
+    @testset "Can check frames readable and writable" begin
+        rb = RingBuffer{Float64}(2, 8)
+        @test framesreadable(rb) == 0
+        @test frameswritable(rb) == 8
+        write(rb, rand(2, 5))
+        @test framesreadable(rb) == 5
+        @test frameswritable(rb) == 3
+        read(rb, 3)
+        @test framesreadable(rb) == 2
+        @test frameswritable(rb) == 6
+        write(rb, rand(2, 6))
+        @test framesreadable(rb) == 8
+        @test frameswritable(rb) == 0
+    end
     @testset "Can read/write 2D arrays" begin
         writedata = collect(reshape(1:10, 2, 5))
         readdata = collect(reshape(11:20, 2, 5))
@@ -36,12 +50,41 @@ using Base.Test
         @test_throws ErrorException read!(rb, readdata)
     end
 
+    @testset "throws error writing too-short array" begin
+        writedata = collect(reshape(1:15, 3, 5))
+        rb = RingBuffer{Int}(2, 8)
+        @test_throws ErrorException write(rb, writedata, 8)
+    end
+
+    @testset "throws error reading into too-short array" begin
+        readdata = collect(reshape(1:15, 3, 5))
+        rb = RingBuffer{Int}(2, 8)
+        @test_throws ErrorException read!(rb, readdata, 8)
+    end
+
     @testset "multiple sequential writes work" begin
         writedata = collect(reshape(1:8, 2, 4))
         rb = RingBuffer{Int}(2, 10)
         write(rb, writedata)
         write(rb, writedata)
         readdata = read(rb, 8)
+        @test readdata == hcat(writedata, writedata)
+    end
+
+    @testset "multiple queued writes work" begin
+        writedata = collect(reshape(1:14, 2, 7))
+        rb = RingBuffer{Int}(2, 4)
+        writer1 = @async begin
+            # println("writer 1 started")
+            write(rb, writedata)
+            # println("writer 1 finished")
+        end
+        writer2 = @async begin
+            # println("writer 2 started")
+            write(rb, writedata)
+            # println("writer 2 finished")
+        end
+        readdata = read(rb, 14)
         @test readdata == hcat(writedata, writedata)
     end
 
@@ -100,5 +143,45 @@ using Base.Test
         close(rb)
         @test wait(t1) == writedata[:, 1:3]
         @test wait(t2) == Array{Int}(2, 0)
+    end
+
+    @testset "writeavailable works with Matrices" begin
+        writedata = collect(reshape(1:20, 2, 10))
+        rb = RingBuffer{Int}(2, 8)
+        @test writeavailable(rb, writedata) == 8
+        @test readavailable(rb) == writedata[:, 1:8]
+    end
+
+    @testset "writeavailable works with Vectors" begin
+        writedata = collect(1:20)
+        rb = RingBuffer{Int}(2, 8)
+        @test writeavailable(rb, writedata) == 8
+        @test vec(readavailable(rb)) == writedata[1:16]
+    end
+
+    @testset "read reads until the buffer is closed" begin
+        writedata = collect(reshape(1:8, 2, 4))
+        rb = RingBuffer{Int}(2, 8)
+        write(rb, writedata)
+        reader = @async read(rb; blocksize=6)
+        for _ in 1:3
+            write(rb, writedata)
+        end
+        flush(rb)
+        close(rb)
+        @test wait(reader) == repmat(writedata, 1, 4)
+    end
+
+    @testset "flush works if we're queued behind a writer" begin
+        writedata = collect(reshape(1:16, 2, 8))
+        rb = RingBuffer{Int}(2, 4)
+        writer1 = @async write(rb, writedata)
+        flusher = @async flush(rb)
+        writer2 = @async write(rb, writedata)
+        read(rb, 16)
+        wait(flusher)
+        # as long as this gets through then we should be OK that the tasks
+        # woke each other up
+        @test true
     end
 end

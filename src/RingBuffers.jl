@@ -88,6 +88,8 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                                pointer(data),
                                nframes)
     nwritten += n
+    # notify any waiting readers that there's data available
+    notify(rbuf.datanotify.cond)
     while nwritten < nframes
         wait(rbuf.datanotify)
         isopen(rbuf) || return nwritten
@@ -95,10 +97,9 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                                    pointer(data)+(nwritten*rbuf.nchannels*sizeof(T)),
                                    nframes-nwritten)
         nwritten += n
+        # notify any waiting readers that there's data available
+        notify(rbuf.datanotify.cond)
     end
-
-    # notify any waiting readers that there's data available
-    notify(rbuf.datanotify.cond)
     # we're done, remove our condition and notify the next writer if necessary
     shift!(rbuf.writers)
     if length(rbuf.writers) > 0
@@ -209,6 +210,8 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                               pointer(data),
                               nframes)
     nread += n
+    # notify any waiting writers that there's space available
+    notify(rbuf.datanotify.cond)
     while nread < nframes
         wait(rbuf.datanotify)
         isopen(rbuf) || return nread
@@ -216,10 +219,9 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                                   pointer(data)+(nread*rbuf.nchannels*sizeof(T)),
                                   nframes-nread)
         nread += n
+        # notify any waiting writers that there's space available
+        notify(rbuf.datanotify.cond)
     end
-
-    # notify any waiting writers that there's space available
-    notify(rbuf.datanotify.cond)
     # we're done, remove our condition and notify the next reader if necessary
     shift!(rbuf.readers)
     if length(rbuf.readers) > 0
@@ -258,6 +260,29 @@ function read(rbuf::RingBuffer{T}, nframes) where {T}
     else
         data
     end
+end
+
+"""
+    read(rbuf::RingBuffer; blocksize=4096)
+
+Read `blocksize` frames at a time from `rbuf` until the ringbuffer is closed,
+and return an (nchannels × nframes) `Array` holding the data. When no data is
+available  the call will block until it can read more or the ring buffer is
+closed.
+"""
+function read(rbuf::RingBuffer{T}; blocksize=4096) where {T}
+    readbuf = Array{T}(rbuf.nchannels, blocksize)
+    # during accumulation we keep the channels separate so we can grow the
+    # arrays without needing to copy data around as much
+    cumbufs = [Vector{T}() for _ in 1:rbuf.nchannels]
+    while true
+        n = read!(rbuf, readbuf)
+        for ch in 1:length(cumbufs)
+            append!(cumbufs[ch], @view readbuf[ch, 1:n])
+        end
+        n == blocksize || break
+    end
+    vcat((x' for x in cumbufs)...)
 end
 
 """
