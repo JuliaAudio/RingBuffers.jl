@@ -13,14 +13,7 @@ import Base: isopen, close
 
 using Base: AsyncCondition
 
-function __init__()
-    # override dlopen flags to make sure we always use `RTLD_GLOBAL` so that the
-    # library functions are available to other C shim libraries that other
-    # packages might need to add to handle their audio callbacks.
-    Libdl.dlopen(libpa_ringbuffer, Libdl.RTLD_LAZY |
-                                   Libdl.RTLD_DEEPBIND |
-                                   Libdl.RTLD_GLOBAL)
-end
+__init__() = init_pa_ringbuffer()
 
 include("pa_ringbuffer.jl")
 

@@ -3,3 +3,6 @@
 *.jl.mem
 coverage
 deps/src/*.o
+deps/usr/lib/pa_ringbuffer.so
+deps/usr/lib/pa_ringbuffer.dylib
+deps/usr/lib/pa_ringbuffer.dll

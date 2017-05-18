@@ -1,7 +1,34 @@
-"The pa_ringbuffer shared library"
-const libpa_ringbuffer = Base.Libdl.find_library(
-        ["pa_ringbuffer"],
-        [joinpath(dirname(@__FILE__), "..", "deps", "usr", "lib")])
+function init_pa_ringbuffer()
+    libdir = joinpath(dirname(@__FILE__), "..", "deps", "usr", "lib")
+    libsuffix = ""
+    @static if is_linux() && Sys.ARCH == :x86_64
+        libsuffix = "x86_64-linux-gnu"
+    elseif is_linux() && Sys.ARCH == :i686
+        libsuffix = "i686-linux-gnu"
+    elseif is_apple() && Sys.ARCH == :x86_64
+        libsuffix = "x86_64-apple-darwin14"
+    elseif is_windows() && Sys.ARCH == :x86_64
+        libsuffix = "x86_64-w64-mingw32"
+    elseif is_windows() && Sys.ARCH == :i686
+        libsuffix = "i686-w64-mingw32"
+    elseif !any(
+            (sfx) -> isfile(joinpath(libdir, "pa_ringbuffer.$sfx")),
+            ("so", "dll", "dylib"))
+        error("Unsupported platform $(Sys.MACHINE). You can build your own library by running `make` from $(joinpath(@__FILE__, "..", "deps", "src"))")
+    end
+    # if there's a suffix-less library, it was built natively on this machine,
+    # so load that one first, otherwise load the pre-built one
+    global const libpa_ringbuffer = Base.Libdl.find_library(
+            ["pa_ringbuffer", "pa_ringbuffer_$libsuffix"],
+            [libdir])
+    libpa_ringbuffer == "" && error("Could not load pa_ringbuffer library, please file an issue at https://github.com/JuliaAudio/RingBuffers.jl/issues with your `versioninfo()` output")
+    # override dlopen flags to make sure we always use `RTLD_GLOBAL` so that the
+    # library functions are available to other C shim libraries that other
+    # packages might need to add to handle their audio callbacks.
+    Libdl.dlopen(libpa_ringbuffer, Libdl.RTLD_LAZY |
+                                   Libdl.RTLD_DEEPBIND |
+                                   Libdl.RTLD_GLOBAL)
+end
 
 @static if is_apple()
     const RingBufferSize = Int32
