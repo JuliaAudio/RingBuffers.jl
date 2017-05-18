@@ -27,6 +27,9 @@ else
 	endif
 endif
 
+CFLAGS =-Wall -Wno-strict-aliasing -fno-omit-frame-pointer
+LDFLAGS =
+
 # file extensions and platform-specific libs
 ifeq ($(OS), WINNT)
 	LIBS +=
@@ -49,8 +52,6 @@ else
 	SHACMD = sha256sum
 endif
 
-CFLAGS +=-Wall -Wno-strict-aliasing -fno-omit-frame-pointer
-LDFLAGS +=
 # LINUX_LIBS =-lrt
 # LINUX_LDFLAGS =-rdynamic
 # add the Homebrew.jl tree to the include dirs in case we used it for

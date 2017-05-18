@@ -2,7 +2,7 @@ using RingBuffers
 using TestSetExtensions
 using Base.Test
 
-@testset DottedTestSet "RingBuffer Tests" begin
+@testset ExtendedTestSet "RingBuffer Tests" begin
     include("pa_ringbuffer.jl")
     @testset "Can check frames readable and writable" begin
         rb = RingBuffer{Float64}(2, 8)
