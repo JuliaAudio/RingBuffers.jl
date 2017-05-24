@@ -20,3 +20,9 @@ The RingBuffers.jl package is licensed under the MIT "Expat" License:
 > CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 > TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 > SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+deps/src/Makefile mostly copied from Clang.jl
+Copyright (c) 2012-: Isaiah Norton and [contributors](https://github.com/ihnorton/Clang.jl/graphs/contributors)
+
+deps/src/pa_* files Copyright (C) Phil Burk and others, released under an MIT
+license. See individual files for details.
