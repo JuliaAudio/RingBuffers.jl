@@ -69,6 +69,7 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
     isopen(rbuf) || return 0
 
     cond = Condition()
+    nwritten = 0
     try
         push!(rbuf.writers, cond)
         if length(rbuf.writers) > 1
@@ -77,7 +78,6 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
             isopen(rbuf) || return 0
         end
         # now we're in the front of the queue
-        nwritten = 0
         n = PaUtil_WriteRingBuffer(rbuf.pabuf,
                                    pointer(data),
                                    nframes)
@@ -197,6 +197,7 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
     end
 
     cond = Condition()
+    nread = 0
     try
         push!(rbuf.readers, cond)
         if length(rbuf.readers) > 1
@@ -205,7 +206,6 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
             isopen(rbuf) || return 0
         end
         # now we're in the front of the queue
-        nread = 0
         n = PaUtil_ReadRingBuffer(rbuf.pabuf,
                                   pointer(data),
                                   nframes)
