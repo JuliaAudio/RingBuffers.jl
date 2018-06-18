@@ -1,6 +1,7 @@
 using RingBuffers
 using TestSetExtensions
-using Base.Test
+import Compat: undef, fetch
+using Compat.Test
 
 @testset ExtendedTestSet "RingBuffer Tests" begin
     include("pa_ringbuffer.jl")
@@ -105,7 +106,7 @@ using Base.Test
         sleep(0.1)
         @test t.state == :runnable
         readdata = read(rb, 8)
-        @test wait(t) == 5
+        @test fetch(t) == 5
         @test t.state == :done
         @test readdata == hcat(writedata, writedata[:, 1:3])
     end
@@ -118,7 +119,7 @@ using Base.Test
         sleep(0.1)
         @test t.state == :runnable
         write(rb, writedata)
-        @test wait(t) == hcat(writedata, writedata)
+        @test fetch(t) == hcat(writedata, writedata)
         @test t.state == :done
     end
 
@@ -129,8 +130,8 @@ using Base.Test
         t2 = @async write(rb, writedata)
         sleep(0.1)
         close(rb)
-        @test wait(t1) == 8
-        @test wait(t2) == 0
+        @test fetch(t1) == 8
+        @test fetch(t2) == 0
     end
 
     @testset "closing ringbuf cancels in-progress reads" begin
@@ -141,8 +142,8 @@ using Base.Test
         t2 = @async read(rb, 5)
         sleep(0.1)
         close(rb)
-        @test wait(t1) == writedata[:, 1:3]
-        @test wait(t2) == Array{Int}(2, 0)
+        @test fetch(t1) == writedata[:, 1:3]
+        @test fetch(t2) == Array{Int}(undef, 2, 0)
     end
 
     @testset "writeavailable works with Matrices" begin
@@ -169,7 +170,11 @@ using Base.Test
         end
         flush(rb)
         close(rb)
-        @test wait(reader) == repmat(writedata, 1, 4)
+        if VERSION >= v"0.7.0-DEV.3977" # Julia PR 26039
+            @test fetch(reader) == repeat(writedata, 1, 4)
+        else
+            @test fetch(reader) == Compat.repmat(writedata, 1, 4)
+        end
     end
 
     @testset "flush works if we're queued behind a writer" begin
@@ -179,7 +184,7 @@ using Base.Test
         flusher = @async flush(rb)
         writer2 = @async write(rb, writedata)
         read(rb, 16)
-        wait(flusher)
+        fetch(flusher)
         # as long as this gets through then we should be OK that the tasks
         # woke each other up
         @test true
