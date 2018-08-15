@@ -42,7 +42,7 @@ struct RingBuffer{T}
     datanotify::AsyncCondition
 
     function RingBuffer{T}(nchannels, frames) where {T}
-        frames = nextpow2(frames)
+        frames = nextpow(2, frames)
         buf = PaUtilRingBuffer(sizeof(T) * nchannels, frames)
         new(buf, nchannels, Condition[], Condition[], AsyncCondition())
     end

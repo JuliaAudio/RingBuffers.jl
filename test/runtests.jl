@@ -1,9 +1,8 @@
 using RingBuffers
-using TestSetExtensions
 import Compat: undef, fetch
 using Compat.Test
 
-@testset ExtendedTestSet "RingBuffer Tests" begin
+@testset "RingBuffer Tests" begin
     include("pa_ringbuffer.jl")
     @testset "Can check frames readable and writable" begin
         rb = RingBuffer{Float64}(2, 8)
