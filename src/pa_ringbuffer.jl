@@ -1,36 +1,4 @@
-function init_pa_ringbuffer()
-    libdir = joinpath(dirname(@__FILE__), "..", "deps", "usr", "lib")
-    libsuffix = ""
-    @static if is_linux() && Sys.ARCH == :x86_64
-        libsuffix = "x86_64-linux-gnu"
-    elseif is_linux() && Sys.ARCH == :i686
-        libsuffix = "i686-linux-gnu"
-    elseif is_apple() && Sys.ARCH == :x86_64
-        libsuffix = "x86_64-apple-darwin14"
-    elseif is_windows() && Sys.ARCH == :x86_64
-        libsuffix = "x86_64-w64-mingw32"
-    elseif is_windows() && Sys.ARCH == :i686
-        libsuffix = "i686-w64-mingw32"
-    elseif !any(
-            (sfx) -> isfile(joinpath(libdir, "pa_ringbuffer.$sfx")),
-            ("so", "dll", "dylib"))
-        error("Unsupported platform $(Sys.MACHINE). You can build your own library by running `make` from $(joinpath(@__FILE__, "..", "deps", "src"))")
-    end
-    # if there's a suffix-less library, it was built natively on this machine,
-    # so load that one first, otherwise load the pre-built one
-    global const libpa_ringbuffer = Base.Libdl.find_library(
-            ["pa_ringbuffer", "pa_ringbuffer_$libsuffix"],
-            [libdir])
-    libpa_ringbuffer == "" && error("Could not load pa_ringbuffer library, please file an issue at https://github.com/JuliaAudio/RingBuffers.jl/issues with your `versioninfo()` output")
-    # override dlopen flags to make sure we always use `RTLD_GLOBAL` so that the
-    # library functions are available to other C shim libraries that other
-    # packages might need to add to handle their audio callbacks.
-    Libdl.dlopen(libpa_ringbuffer, Libdl.RTLD_LAZY |
-                                   Libdl.RTLD_DEEPBIND |
-                                   Libdl.RTLD_GLOBAL)
-end
-
-@static if is_apple()
+@static if Compat.Sys.isapple()
     const RingBufferSize = Int32
 else
     const RingBufferSize = Clong
@@ -56,7 +24,7 @@ mutable struct PaUtilRingBuffer
         rbuf = new()
         PaUtil_InitializeRingBuffer(rbuf, elementSizeBytes, elementCount, data)
 
-        finalizer(rbuf, close)
+        @compat finalizer(close, rbuf)
         rbuf
     end
 end
@@ -79,17 +47,16 @@ Initialize Ring Buffer to empty state ready to have elements written to it.
 * `rbuf::PaUtilRingBuffer`: The ring buffer.
 * `elementSizeBytes::RingBufferSize`: The size of a single data element in bytes.
 * `elementCount::RingBufferSize`: The number of elements in the buffer (must be a power of 2).
-* `dataPtr::Ptr{Void}`: A pointer to a previously allocated area where the data
+* `dataPtr::Ptr{Cvoid}`: A pointer to a previously allocated area where the data
   will be maintained.  It must be elementCount*elementSizeBytes long.
 """
 function PaUtil_InitializeRingBuffer(rbuf, elementSizeBytes, elementCount, dataPtr)
     if !ispow2(elementCount)
         throw(ErrorException("elementCount($elementCount) must be a power of 2"))
     end
-
     status = ccall((:PaUtil_InitializeRingBuffer, libpa_ringbuffer),
                    RingBufferSize,
-                   (Ref{PaUtilRingBuffer}, RingBufferSize, RingBufferSize, Ptr{Void}),
+                   (Ref{PaUtilRingBuffer}, RingBufferSize, RingBufferSize, Ptr{Cvoid}),
                    rbuf, elementSizeBytes, elementCount, dataPtr)
     if status != 0
         throw(ErrorException("PaUtil_InitializeRingBuffer returned status $status"))
@@ -106,7 +73,7 @@ Reset buffer to empty. Should only be called when buffer is NOT being read or wr
 """
 function PaUtil_FlushRingBuffer(rbuf)
     ccall((:PaUtil_FlushRingBuffer, libpa_ringbuffer),
-          Void,
+          Cvoid,
           (Ref{PaUtilRingBuffer}, ),
           rbuf)
 end
@@ -137,7 +104,7 @@ end
 
 """
     PaUtil_WriteRingBuffer(rbuf::PaUtilRingBuffer,
-                           data::Ptr{Void},
+                           data::Ptr{Cvoid},
                            elementCount::RingBufferSize)
 
 Write data to the ring buffer and return the number of elements written.
@@ -145,13 +112,13 @@ Write data to the ring buffer and return the number of elements written.
 function PaUtil_WriteRingBuffer(rbuf, data, elementCount)
     ccall((:PaUtil_WriteRingBuffer, libpa_ringbuffer),
           RingBufferSize,
-          (Ref{PaUtilRingBuffer}, Ptr{Void}, RingBufferSize),
+          (Ref{PaUtilRingBuffer}, Ptr{Cvoid}, RingBufferSize),
           rbuf, data, elementCount)
 end
 
 """
     PaUtil_ReadRingBuffer(rbuf::PaUtilRingBuffer,
-                          data::Ptr{Void},
+                          data::Ptr{Cvoid},
                           elementCount::RingBufferSize)
 
 Read data from the ring buffer and return the number of elements read.
@@ -159,6 +126,6 @@ Read data from the ring buffer and return the number of elements read.
 function PaUtil_ReadRingBuffer(rbuf, data, elementCount)
     ccall((:PaUtil_ReadRingBuffer, libpa_ringbuffer),
           RingBufferSize,
-          (Ref{PaUtilRingBuffer}, Ptr{Void}, RingBufferSize),
+          (Ref{PaUtilRingBuffer}, Ptr{Cvoid}, RingBufferSize),
           rbuf, data, elementCount)
 end

@@ -1,4 +1,4 @@
-__precompile__()
+__precompile__(true)
 
 module RingBuffers
 
@@ -12,8 +12,12 @@ import Base: unsafe_convert, pointer
 import Base: isopen, close
 
 using Base: AsyncCondition
+import Compat
+import Compat: Libdl, Cvoid, undef, popfirst!, @compat
 
-__init__() = init_pa_ringbuffer()
+depsjl = joinpath(@__DIR__, "..", "deps", "deps.jl")
+isfile(depsjl) ? include(depsjl) : error("RingBuffers not properly installed. Please run Pkg.build(\"RingBuffers\")")
+__init__() = check_deps()
 
 include("pa_ringbuffer.jl")
 
@@ -38,7 +42,7 @@ struct RingBuffer{T}
     datanotify::AsyncCondition
 
     function RingBuffer{T}(nchannels, frames) where {T}
-        frames = nextpow2(frames)
+        frames = nextpow(2, frames)
         buf = PaUtilRingBuffer(sizeof(T) * nchannels, frames)
         new(buf, nchannels, Condition[], Condition[], AsyncCondition())
     end
@@ -96,7 +100,7 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
         end
     finally
         # we're done, remove our condition and notify the next writer if necessary
-        shift!(rbuf.writers)
+        popfirst!(rbuf.writers)
         if length(rbuf.writers) > 0
            notify(rbuf.writers[1])
         end
@@ -167,7 +171,7 @@ function flush(rbuf::RingBuffer)
 
     finally
         # we're done, remove our condition and notify the next writer if necessary
-        shift!(rbuf.writers)
+        popfirst!(rbuf.writers)
         if length(rbuf.writers) > 0
            notify(rbuf.writers[1])
         end
@@ -224,7 +228,7 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
         end
     finally
         # we're done, remove our condition and notify the next reader if necessary
-        shift!(rbuf.readers)
+        popfirst!(rbuf.readers)
         if length(rbuf.readers) > 0
            notify(rbuf.readers[1])
         end
@@ -254,7 +258,7 @@ holding the interleaved data. If the buffer is empty the call will block until
 data is available or the ring buffer is closed.
 """
 function read(rbuf::RingBuffer{T}, nframes) where {T}
-    data = Array{T}(rbuf.nchannels, nframes)
+    data = Array{T}(undef, rbuf.nchannels, nframes)
     nread = read!(rbuf, data, nframes)
 
     if nread < nframes
@@ -273,7 +277,7 @@ available  the call will block until it can read more or the ring buffer is
 closed.
 """
 function read(rbuf::RingBuffer{T}; blocksize=4096) where {T}
-    readbuf = Array{T}(rbuf.nchannels, blocksize)
+    readbuf = Array{T}(undef, rbuf.nchannels, blocksize)
     # during accumulation we keep the channels separate so we can grow the
     # arrays without needing to copy data around as much
     cumbufs = [Vector{T}() for _ in 1:rbuf.nchannels]

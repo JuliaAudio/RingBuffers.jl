@@ -5,11 +5,18 @@ os:
   - osx
 julia:
   - 0.6
+  - 0.7
+  - 1.0
+  - nightly
+matrix:
+  allow_failures:
+    - julia: nightly
+  fast_finish: true
 notifications:
   email: false
-# uncomment the following lines to override the default test script
-script:
- - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
- - julia -e 'Pkg.clone(pwd()); Pkg.build("RingBuffers"); Pkg.test("RingBuffers"; coverage=true)'
 after_success:
-  - julia -e 'cd(Pkg.dir("RingBuffers")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
+  - julia -e 'VERSION >= v\"0.7.0-\" && using Pkg;
+      VERSION < v\"0.7.0-\" && cd(Pkg.dir("RingBuffers"));
+      Pkg.add("Coverage");
+      using Coverage;
+      Codecov.submit(process_folder())'
