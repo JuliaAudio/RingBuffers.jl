@@ -17,9 +17,22 @@ import Compat: Libdl, Cvoid, undef, popfirst!, @compat
 
 depsjl = joinpath(@__DIR__, "..", "deps", "deps.jl")
 isfile(depsjl) ? include(depsjl) : error("RingBuffers not properly installed. Please run Pkg.build(\"RingBuffers\")")
-__init__() = check_deps()
-
 include("pa_ringbuffer.jl")
+
+function __init__()
+    # we use this rather than the built-in BinaryProvider `check_deps` function
+    # so we can customize the dlopen flags. We need to use `RTLD_GLOBAL` so
+    # that the library functions are available to other C shim libraries that
+    # other packages might need to add to handle their audio callbacks.
+    if !isfile(libpa_ringbuffer)
+        error("$(libpa_ringbuffer) does not exist, Please re-run Pkg.build(\"RingBuffers\"), and restart Julia.")
+    end
+    if Libdl.dlopen_e(libpa_ringbuffer, Libdl.RTLD_LAZY |
+                                        Libdl.RTLD_DEEPBIND |
+                                        Libdl.RTLD_GLOBAL) == C_NULL
+        error("$(libpa_ringbuffer) cannot be opened, Please re-run Pkg.build(\"RingBuffers\"), and restart Julia.")
+    end
+end
 
 """
     RingBuffer{T}(nchannels, nframes)
