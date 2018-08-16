@@ -371,10 +371,11 @@ notifyhandle(rbuf::RingBuffer) = rbuf.datanotify.handle
 
 Return the pointer to the underlying PaUtilRingBuffer that can be passed to C
 code and manipulated with the pa_ringbuffer.h API.
-"""
-pointer(rbuf::RingBuffer) = Ptr{PaUtilRingBuffer}(pointer_from_objref(rbuf.pabuf))
 
-# set it up so we can pass this directly to `ccall` expecting a PA ringbuffer
-unsafe_convert(::Type{Ptr{PaUtilRingBuffer}}, buf::RingBuffer) = unsafe_convert(Ptr{PaUtilRingBuffer}, buf.pabuf)
+Note that this does not maintain any GC references, so it is imperative that
+there is an active reference to this RingBuffer for as long as this pointer
+might be accessed.
+"""
+pointer(rbuf::RingBuffer) = pointer_from_objref(rbuf.pabuf)
 
 end # module
