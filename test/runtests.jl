@@ -75,14 +75,10 @@ using Compat.Test
         writedata = collect(reshape(1:14, 2, 7))
         rb = RingBuffer{Int}(2, 4)
         writer1 = @async begin
-            # println("writer 1 started")
             write(rb, writedata)
-            # println("writer 1 finished")
         end
         writer2 = @async begin
-            # println("writer 2 started")
             write(rb, writedata)
-            # println("writer 2 finished")
         end
         readdata = read(rb, 14)
         @test readdata == hcat(writedata, writedata)
@@ -174,6 +170,21 @@ using Compat.Test
         else
             @test fetch(reader) == Compat.repmat(writedata, 1, 4)
         end
+    end
+
+    @testset "reading a closed ringbuf reads nothing" begin
+        rb = RingBuffer{Int}(2,8)
+        readbuf = zeros(Int, 4)
+        write(rb, rand(Int, 2, 8))
+        close(rb)
+        @test read(rb) == Array{Int}(undef, 2, 0)
+        @test read!(rb, readbuf) == 0
+    end
+
+    @testset "writing to a closed ringbuf writes nothing" begin
+        rb = RingBuffer{Int}(2,8)
+        close(rb)
+        @test write(rb, rand(Int, 2, 8)) == 0
     end
 
     @testset "flush works if we're queued behind a writer" begin

@@ -213,6 +213,7 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
         throw(ErrorException("data array is too short ($dframes frames) for requested read ($nframes frames)"))
     end
 
+    isopen(rbuf) || return 0
     cond = Condition()
     nread = 0
     try
@@ -220,9 +221,9 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
         if length(rbuf.readers) > 1
             # we're behind someone in the queue
             wait(cond)
-            isopen(rbuf) || return 0
         end
         # now we're in the front of the queue
+        isopen(rbuf) || return 0
         n = PaUtil_ReadRingBuffer(rbuf.pabuf,
                                   pointer(data),
                                   nframes)
