@@ -24,7 +24,12 @@ mutable struct PaUtilRingBuffer
         rbuf = new()
         PaUtil_InitializeRingBuffer(rbuf, elementSizeBytes, elementCount, data)
 
-        @compat finalizer(close, rbuf)
+        # it's the responsibility of the parent to close the ringbuffer. Closing
+        # in a finalizer is dangerous because the callback thread might have a
+        # direct pointer to this ringbuffer, and we want to make sure the parent
+        # is able to properly shut down the callback thread before this is
+        # closed
+
         rbuf
     end
 end

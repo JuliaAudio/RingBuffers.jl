@@ -254,7 +254,7 @@ end
 function read!(rbuf::RingBuffer{T}, data::AbstractMatrix{T}) where {T}
     if size(data, 1) != rbuf.nchannels
         throw(ErrorException(
-            "Tried to write a $(size(data, 1))-channel array to a $(rbuf.nchannels)-channel ring buffer"))
+            "Tried to read a $(rbuf.nchannels)-channel ring buffer into a $(size(data, 1))-channel array"))
     end
     read!(rbuf, data, size(data, 2))
 end
