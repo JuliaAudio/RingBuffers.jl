@@ -24,13 +24,13 @@ function __init__()
     # so we can customize the dlopen flags. We need to use `RTLD_GLOBAL` so
     # that the library functions are available to other C shim libraries that
     # other packages might need to add to handle their audio callbacks.
-    if !isfile(libpa_ringbuffer)
-        error("$(libpa_ringbuffer) does not exist, Please re-run Pkg.build(\"RingBuffers\"), and restart Julia.")
+    if !isfile(pa_ringbuffer)
+        error("$(pa_ringbuffer) does not exist, Please re-run Pkg.build(\"RingBuffers\"), and restart Julia.")
     end
-    if Libdl.dlopen_e(libpa_ringbuffer, Libdl.RTLD_LAZY |
+    if Libdl.dlopen_e(pa_ringbuffer, Libdl.RTLD_LAZY |
                                         Libdl.RTLD_DEEPBIND |
                                         Libdl.RTLD_GLOBAL) == C_NULL
-        error("$(libpa_ringbuffer) cannot be opened, Please re-run Pkg.build(\"RingBuffers\"), and restart Julia.")
+        error("$(pa_ringbuffer) cannot be opened, Please re-run Pkg.build(\"RingBuffers\"), and restart Julia.")
     end
 end
 
