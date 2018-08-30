@@ -59,7 +59,7 @@ function PaUtil_InitializeRingBuffer(rbuf, elementSizeBytes, elementCount, dataP
     if !ispow2(elementCount)
         throw(ErrorException("elementCount($elementCount) must be a power of 2"))
     end
-    status = ccall((:PaUtil_InitializeRingBuffer, libpa_ringbuffer),
+    status = ccall((:PaUtil_InitializeRingBuffer, pa_ringbuffer),
                    RingBufferSize,
                    (Ref{PaUtilRingBuffer}, RingBufferSize, RingBufferSize, Ptr{Cvoid}),
                    rbuf, elementSizeBytes, elementCount, dataPtr)
@@ -77,7 +77,7 @@ end
 Reset buffer to empty. Should only be called when buffer is NOT being read or written.
 """
 function PaUtil_FlushRingBuffer(rbuf)
-    ccall((:PaUtil_FlushRingBuffer, libpa_ringbuffer),
+    ccall((:PaUtil_FlushRingBuffer, pa_ringbuffer),
           Cvoid,
           (Ref{PaUtilRingBuffer}, ),
           rbuf)
@@ -89,7 +89,7 @@ end
 Retrieve the number of elements available in the ring buffer for writing.
 """
 function PaUtil_GetRingBufferWriteAvailable(rbuf)
-    ccall((:PaUtil_GetRingBufferWriteAvailable, libpa_ringbuffer),
+    ccall((:PaUtil_GetRingBufferWriteAvailable, pa_ringbuffer),
           RingBufferSize,
           (Ref{PaUtilRingBuffer}, ),
           rbuf)
@@ -101,7 +101,7 @@ end
 Retrieve the number of elements available in the ring buffer for reading.
 """
 function PaUtil_GetRingBufferReadAvailable(rbuf)
-    ccall((:PaUtil_GetRingBufferReadAvailable, libpa_ringbuffer),
+    ccall((:PaUtil_GetRingBufferReadAvailable, pa_ringbuffer),
           RingBufferSize,
           (Ref{PaUtilRingBuffer}, ),
           rbuf)
@@ -115,7 +115,7 @@ end
 Write data to the ring buffer and return the number of elements written.
 """
 function PaUtil_WriteRingBuffer(rbuf, data, elementCount)
-    ccall((:PaUtil_WriteRingBuffer, libpa_ringbuffer),
+    ccall((:PaUtil_WriteRingBuffer, pa_ringbuffer),
           RingBufferSize,
           (Ref{PaUtilRingBuffer}, Ptr{Cvoid}, RingBufferSize),
           rbuf, data, elementCount)
@@ -129,7 +129,7 @@ end
 Read data from the ring buffer and return the number of elements read.
 """
 function PaUtil_ReadRingBuffer(rbuf, data, elementCount)
-    ccall((:PaUtil_ReadRingBuffer, libpa_ringbuffer),
+    ccall((:PaUtil_ReadRingBuffer, pa_ringbuffer),
           RingBufferSize,
           (Ref{PaUtilRingBuffer}, Ptr{Cvoid}, RingBufferSize),
           rbuf, data, elementCount)
