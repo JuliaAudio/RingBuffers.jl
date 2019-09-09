@@ -364,15 +364,18 @@ end
 isopen(rbuf::RingBuffer) = isopen(rbuf.pabuf)
 
 # """
-#     notify(rbuf::RingBuffer)
+#     notify_data(rbuf::RingBuffer)
 #
 # Notify the ringbuffer that new data might be available, which will wake up
 # any waiting readers or writers. This is safe to call from a separate thread
 # context.
 # """
-# notify(rbuf::RingBuffer) = ccall(:uv_async_send, rbuf.datacond.handle)
-
-notify_data(rbuf::RingBuffer) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), rbuf.datanotify.handle)
+function notify_data end
+if VERSION >= v"1.2"
+    notify_data(rbuf::RingBuffer) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), rbuf.datanotify.handle)
+else
+    notify_data(rbuf::RingBuffer) = notify(rbuf.datanotify.cond)
+end
 
 """
     notifyhandle(rbuf::RingBuffer)
