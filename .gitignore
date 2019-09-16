@@ -9,3 +9,4 @@ deps/usr/lib/pa_ringbuffer.dll
 deps/build.log
 deps/deps.jl
 deps/usr
+test/Manifest.toml
