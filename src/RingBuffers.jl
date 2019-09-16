@@ -100,7 +100,7 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                                    nframes)
         nwritten += n
         # notify any waiting readers that there's data available
-        notify(rbuf.datanotify.cond)
+        notify_data(rbuf)
         while nwritten < nframes
             wait(rbuf.datanotify)
             isopen(rbuf) || return nwritten
@@ -109,7 +109,7 @@ function write(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                                        nframes-nwritten)
             nwritten += n
             # notify any waiting readers that there's data available
-            notify(rbuf.datanotify.cond)
+            notify_data(rbuf)
         end
     finally
         # we're done, remove our condition and notify the next writer if necessary
@@ -229,7 +229,7 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                                   nframes)
         nread += n
         # notify any waiting writers that there's space available
-        notify(rbuf.datanotify.cond)
+        notify_data(rbuf)
         while nread < nframes
             wait(rbuf.datanotify)
             isopen(rbuf) || return nread
@@ -238,7 +238,7 @@ function read!(rbuf::RingBuffer{T}, data::AbstractArray{T}, nframes) where {T}
                                       nframes-nread)
             nread += n
             # notify any waiting writers that there's space available
-            notify(rbuf.datanotify.cond)
+            notify_data(rbuf)
         end
     finally
         # we're done, remove our condition and notify the next reader if necessary
@@ -358,19 +358,24 @@ end
 function close(rbuf::RingBuffer)
     close(rbuf.pabuf)
     # wake up any waiting readers or writers
-    notify(rbuf.datanotify.cond)
+    notify_data(rbuf)
 end
 
 isopen(rbuf::RingBuffer) = isopen(rbuf.pabuf)
 
 # """
-#     notify(rbuf::RingBuffer)
+#     notify_data(rbuf::RingBuffer)
 #
 # Notify the ringbuffer that new data might be available, which will wake up
 # any waiting readers or writers. This is safe to call from a separate thread
 # context.
 # """
-# notify(rbuf::RingBuffer) = ccall(:uv_async_send, rbuf.datacond.handle)
+function notify_data end
+if VERSION >= v"1.2"
+    notify_data(rbuf::RingBuffer) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), rbuf.datanotify.handle)
+else
+    notify_data(rbuf::RingBuffer) = notify(rbuf.datanotify.cond)
+end
 
 """
     notifyhandle(rbuf::RingBuffer)
